@@ -3,6 +3,9 @@ import {Product} from "./product";
 import {ProductService} from "./product.service";
 import {HttpErrorResponse} from "@angular/common/http";
 import {NgForm} from "@angular/forms";
+import {finalize, Observable} from "rxjs";
+import {AngularFireStorage} from "@angular/fire/compat/storage";
+import {rejects} from "assert";
 
 @Component({
   selector: 'app-root',
@@ -14,12 +17,47 @@ export class AppComponent implements OnInit{
   public editProduct: Product;
   public deleteProduct: Product;
   public product:Product;
+  public checkUploadFile = true;
   title = 'case';
-  constructor(private productService: ProductService) {
+  // // @ts-ignore
+  // selectedFile: null;
+  public fb: string = "";
+  downloadURL: Observable<string>;
+
+  constructor(private productService: ProductService, private storage: AngularFireStorage) {
   }
   ngOnInit() {
   this.getProducts();
   }
+  onFileSelected(event:any) {
+    this.checkUploadFile = false;
+    var n = Date.now();
+    const file = event.target.files[0];
+    const filePath = `RoomsImages/${n}`;
+    const fileRef = this.storage.ref(filePath);
+    const task = this.storage.upload(`RoomsImages/${n}`, file);
+    task
+      .snapshotChanges()
+      .pipe(
+        finalize(() => {
+          this.downloadURL = fileRef.getDownloadURL();
+          this.downloadURL.subscribe(url => {
+            if (url) {
+              this.fb = url;
+              this.checkUploadFile = true;
+            }
+            console.log(this.fb);
+          });
+        })
+      )
+      .subscribe(url => {
+        if (url) {
+          console.log(url);
+        }
+      });
+  }
+
+
   public getProducts():void{
     this.productService.getProductList().subscribe(
       (response:Product[])=>{
@@ -31,21 +69,30 @@ export class AppComponent implements OnInit{
       }
     );
   }
+
+
+
   public onAddProduct(addForm: NgForm): void {
     // @ts-ignore
     document.getElementById('add-product-form').click();
+    console.log("add product ", this.fb)
+    addForm.value.img = this.fb;
+    console.log(addForm.value);
     this.productService.addProduct(addForm.value).subscribe(
       (response: Product) => {
         console.log(response);
         this.getProducts();
         addForm.reset();
+        this.fb="";
       },
       (error: HttpErrorResponse) => {
         alert(error.message);
         addForm.reset();
       }
     );
+
   }
+
 
   public onUpdateProduct(product: Product): void {
     this.productService.updateProduct(product).subscribe(
@@ -107,6 +154,7 @@ export class AppComponent implements OnInit{
     container.appendChild(button);
     button.click();
   }
+
 
 
 }
